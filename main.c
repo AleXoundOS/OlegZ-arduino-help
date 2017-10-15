@@ -1,74 +1,76 @@
-#define LEFT_SENSOR 10
-#define RIGHT_SENSOR 9
-#define LEFT_WHEEL_SPEED 5
-#define RIGHT_WHEEL_SPEED 6
+#include <stdint.h>
 
-int deltaTime = 200;
-int speed = 50;
+#define LEFT_SENSOR_PIN 10
+#define RIGHT_SENSOR_PIN 9
+#define LEFT_WHEEL_PIN 5
+#define RIGHT_WHEEL_PIN 6
 
-int leftRot;
-int rightRot;
-int lastTime;
-int newTime;
-int leftSensorSpeed;
-int rightSensorSpeed;
-boolean leftSensorPingFirst;
-boolean leftSensorPingSecond;
-boolean rightSensorPingFirst;
-boolean rightSensorPingSecond;
+#define DRIVES_SPEED 50
+#define DELTA_TIME 200
 
+typedef uint32_t Mickeys; // единица измерения срабатывания
+
+void measure(int pin, boolean *lastRead, Mickeys ms);
+
+Mickeys measureLeft, measureRight;
+
+unsigned long firstMeasureTime, currentMeasureTime;
+
+boolean lastSensorReadLeft, lastSensorReadRight;
 
 void setup() {
-    // put your setup code here, to run once:
-
     Serial.begin(9600);
-    pinMode(LEFT_SENSOR, INPUT);
-    pinMode(RIGHT_SENSOR, INPUT);
-    for (int i = 4; i < 8; i++)
-        pinMode(i, OUTPUT);
-    lastTime = 0;
-}
+
+    pinMode(LEFT_SENSOR_PIN,  INPUT);
+    pinMode(RIGHT_SENSOR_PIN, INPUT);
+    pinMode(LEFT_WHEEL_PIN , OUTPUT);
+    pinMode(RIGHT_WHEEL_PIN, OUTPUT);
+
+    // задание начальной скорости приводов колёс
+    analogWrite(LEFT_WHEEL_PIN,  DRIVES_SPEED); // левого
+    analogWrite(RIGHT_WHEEL_PIN, DRIVES_SPEED); // правого
+
+    // установка начальных измерений с датчиков
+    lastSensorReadLeft  = digitalRead(LEFT_SENSOR_PIN);
+    lastSensorReadRight = digitalRead(RIGHT_SENSOR_PIN);
+} // setup
 
 void loop() {
-    // put your main code here, to run repeatedly:
+    unsigned int leftSensorSpeed, rightSensorSpeed;
 
-    // задаётся скорость приводов колёс
-    analogWrite(LEFT_WHEEL_SPEED, speed); // левого
-    analogWrite(RIGHT_WHEEL_SPEED, speed); // правого
+    currentMeasureTime = millis();
 
-    // чтение первого сигнала с левого датчика
-    leftSensorPingFirst = digitalRead(LEFT_SENSOR);
-    delay(1);
-    // чтение первого сигнала с правого датчика
-    rightSensorPingFirst = digitalRead(RIGHT_SENSOR);
-    delay(1);
-    // чтение второго сигнала с правого левого датчика
-    leftSensorPingSecond = digitalRead(LEFT_SENSOR);
-    delay(1);
-    // чтение второго сигнала с правого правого датчика
-    rightSensorPingSecond = digitalRead(RIGHT_SENSOR);
+    // (принебрегаем разностью во времени между левым-правым измерениями)
+    measure(LEFT_SENSOR_PIN,  &lastSensorReadLeft,  &measureLeft );
+    measure(RIGHT_SENSOR_PIN, &lastSensorReadRight, &measureRight);
 
-    // если не совпадают
-    if (leftSensorPingFirst != leftSensorPingSecond)
-    {
-        leftRot += 1; // записываем количество срабатываний датчика
-    }
-    if (rightSensorPingFirst != rightSensorPingSecond)
-    {
-        rightRot += 1; // то же самое для правого
-    }
-
-    newTime = millis();
-
-    if (newTime >= lastTime + deltaTime)
+    if (currentMeasureTime >= firstMeasureTime + DELTA_TIME)
     {   // прошёл интервал замера скорости
-        leftSensorSpeed = (leftRot*1000)/deltaTime; // расчёт скорости
-        rightSensorSpeed = (rightRot*1000)/deltaTime;
+        // расчёт двух скоростей
+        leftSensorSpeed  = (measureLeft  * 1000) / deltaTime;
+        rightSensorSpeed = (measureRight * 1000) / deltaTime;
+
+        // обнуление счётчиков срабатываний
+        measureLeft = measureRight = 0;
+
         Serial.print(leftSensorSpeed);
         Serial.print("\t");
         Serial.println(rightSensorSpeed);
-        leftRot = 0;
-        rightRot = 0;
-        lastTime = newTime; // обнуляем счётчики для нового расчёта скорости
+
+        // обновление времени для начальной точки отсчёта нового измерения
+        firstMeasureTime = currentMeasureTime;
     }
-}
+} // loop
+
+void measure(int pin, boolean *lastRead, Mickeys *ms)
+{
+    boolean curRead;
+
+    // чтение сигнала с датчика по заданному pin
+    curRead = digitalRead(pin);
+
+    if (curRead != *lastRead) // новое измерение отличается от старого?
+        ++(*ms); // инкрементация счётчика срабатываний
+
+    *lastRead = curRead;
+} // measure
