@@ -1,4 +1,4 @@
-#include <stdint.h>
+#include "main.h"
 
 #define LEFT_SENSOR_PIN 10
 #define RIGHT_SENSOR_PIN 9
@@ -7,8 +7,6 @@
 
 #define DRIVES_SPEED 50
 #define DELTA_TIME 200
-
-typedef uint32_t Mickeys; // единица измерения срабатывания
 
 void measure(int pin, boolean *lastRead, Mickeys ms);
 
